@@ -85,7 +85,7 @@ class ParsingTests(TestCase):
 
         self.assertListEqual(
             ["BillType", "ParliamentarySession"],
-            _complex.fk_models()
+            _complex.foreign_key_models()
         )
 
         models = parse_classes(MULTIPLE_MODELS)
@@ -116,5 +116,5 @@ class ParsingTests(TestCase):
         self.assertEqual(3, len(publication.fields))
         self.assertTrue('parliamentdotuk' in [x.name for x in publication.fields])
 
-        print(publication.fk_models())
-        self.assertTrue('Bill' in publication.fk_models())
+        print(publication.foreign_key_models())
+        self.assertTrue('Bill' in publication.foreign_key_models())
