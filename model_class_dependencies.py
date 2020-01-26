@@ -435,7 +435,9 @@ def _parse_args():
     return parsed
 
 
-def main(clargs):
+def main():
+    clargs = _parse_args()
+
     enabled_entities = {
         'related_field_enabled': clargs.related_fields,
         'subclass_enabled': clargs.subclasses,
@@ -458,6 +460,4 @@ def main(clargs):
 
 
 if __name__ == '__main__':
-    _args = _parse_args()
-
-    main(_args)
+    main()
