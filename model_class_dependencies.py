@@ -54,8 +54,32 @@ class PyClass:
             return [x for x in self.fields if x.type == 'models.ForeignKey']
         return []
 
-    def fk_models(self) -> List[str]:
+    def one_to_one_fields(self) -> List[Field]:
+        if self.is_model:
+            return [x for x in self.fields if x.type == 'models.OneToOneField']
+        return []
+
+    def many_to_many_fields(self) -> List[Field]:
+        if self.is_model:
+            return [x for x in self.fields if x.type == 'models.ManyToManyField']
+        return []
+
+    def foreign_key_models(self) -> List[str]:
+        """Return the list of names of models that this model references by ForeignKey."""
         return [x.args[0] for x in self.foreign_key_fields()]
+
+    def one_to_one_models(self) -> List[str]:
+        """Return the list of names of models that this model references by OneToOneField."""
+        return [x.args[0] for x in self.one_to_one_fields()]
+
+    def many_to_many_models(self) -> List[str]:
+        """Return the list of names of models that this model references by ManyToManyField."""
+        return [x.args[0] for x in self.many_to_many_fields()]
+
+    def related_models(self) -> List[str]:
+        """Return the list of names of models that this model references by
+        any of ForeignKey, OneToOneFIeld, ManyToManyField."""
+        return self.foreign_key_models() + self.one_to_one_models() + self.many_to_many_models()
 
 
 FIELD_REGEX = re.compile(
@@ -169,7 +193,7 @@ def generate_graph(
         models: Dict[str, PyClass],
         abstract_enabled=True,
         concrete_enabled=True,
-        fk_enabled=True,
+        related_field_enabled=True,
         subclass_enabled=True,
 ) -> Tuple[nx.Graph, Dict, Dict]:
     graph = nx.MultiDiGraph(format='png', directed=True)
@@ -189,24 +213,34 @@ def generate_graph(
         'concrete': concrete_models,
     }
 
-    fk_relations = []
+    foreign_key_relations = []
+    one_to_one_relations = []
+    many_to_many_relations = []
     subclass_relations = []
 
     # Classify edges and add them to graph
     for model in models.values():
-        for fk in model.fk_models():
-            fk_relations.append((model.name, fk))
+        for fk in model.foreign_key_models():
+            foreign_key_relations.append((model.name, fk))
+        for oto in model.one_to_one_models():
+            one_to_one_relations.append((model.name, oto))
+        for mtm in model.many_to_many_models():
+            many_to_many_relations.append((model.name, mtm))
+        # for related in model.related_models():
+        #     field_relations.append((model.name, related))
 
         for dep in model.class_dependencies:
             subclass_relations.append((model.name, dep))
 
-    if fk_enabled:
-        graph.add_edges_from(fk_relations)
+    if related_field_enabled:
+        graph.add_edges_from(foreign_key_relations + one_to_one_relations + many_to_many_relations)
     if subclass_enabled:
         graph.add_edges_from(subclass_relations)
 
     edges = {
-        'fk': fk_relations,
+        'foreignkey': foreign_key_relations,
+        'onetoone': one_to_one_relations,
+        'manytomany': many_to_many_relations,
         'subclass': subclass_relations,
     }
 
@@ -220,7 +254,7 @@ def show_graph(
         saveas=None,
         abstract_enabled=True,
         concrete_enabled=True,
-        fk_enabled=True,
+        related_field_enabled=True,
         subclass_enabled=True,
 ):
     fig = plt.figure(1, figsize=(28, 28))
@@ -229,11 +263,27 @@ def show_graph(
 
     layout = layout_fn(graph)
 
-    if fk_enabled:
+    if related_field_enabled:
         nx.draw_networkx_edges(
             graph, layout,
-            edgelist=edges.get('fk'),
+            edgelist=edges.get('foreignkey'),
             edge_color='#4f9bd1',
+            alpha=.9,
+            connectionstyle='arc3, rad=.2'
+        )
+
+        nx.draw_networkx_edges(
+            graph, layout,
+            edgelist=edges.get('onetoone'),
+            edge_color='#9bd14f',
+            alpha=.9,
+            connectionstyle='arc3, rad=.2'
+        )
+
+        nx.draw_networkx_edges(
+            graph, layout,
+            edgelist=edges.get('manytomany'),
+            edge_color='#d14f9b',
             alpha=.9,
             connectionstyle='arc3, rad=.2'
         )
@@ -322,8 +372,8 @@ def _parse_args():
     )
 
     parser.add_argument(
-        '-nofk',
-        dest='fk',
+        '-nofields',
+        dest='related_fields',
         default=True,
         action='store_false',
     )
@@ -343,7 +393,7 @@ def _parse_args():
     )
 
     parser.add_argument(
-        '-fkonly',
+        '-fieldsonly',
         default=False,
         action='store_true',
     )
@@ -366,19 +416,19 @@ def _parse_args():
     if parsed.cwd == '.':
         parsed.cwd = os.getcwd()
 
-    if parsed.fkonly:
+    if parsed.fieldsonly:
         parsed.abstract = False
         parsed.subclasses = False
 
     if parsed.subclassonly:
-        parsed.fk = False
+        parsed.related_fields = False
 
     if not parsed.abstract:
         log.info('Abstract classes hidden')
     if not parsed.concrete:
         log.info('Concrete classes hidden')
-    if not parsed.fk:
-        log.info('Foreign Key relations hidden')
+    if not parsed.related_fields:
+        log.info('Field relations (ForeignKey, OneToOneField, ManyToManyField) hidden')
     if not parsed.subclasses:
         log.info('Subclass relations hidden')
 
@@ -387,7 +437,7 @@ def _parse_args():
 
 def main(clargs):
     enabled_entities = {
-        'fk_enabled': clargs.fk,
+        'related_field_enabled': clargs.related_fields,
         'subclass_enabled': clargs.subclasses,
         'abstract_enabled': clargs.abstract,
         'concrete_enabled': clargs.concrete,
