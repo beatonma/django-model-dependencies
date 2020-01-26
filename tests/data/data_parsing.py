@@ -107,4 +107,27 @@ class BillPublication(ParliamentDotUkMixin, BaseModel):
         on_delete=models.DO_NOTHING,
     )
     title = models.CharField(max_length=512)
+
+
+class Bill(ParliamentDotUkMixin, BaseModel):
+    title = models.CharField(max_length=512)
+    description = models.CharField(max_length=1024)
+    act_name = models.CharField(max_length=512)
+    homepage = models.URLField()
+
+    ballot_number = models.PositiveIntegerField(default=0)
+    bill_chapter = models.PositiveIntegerField(default=0)
+
+    is_private = models.BooleanField()
+
+    bill_type = models.ForeignKey(
+        'BillType',
+        on_delete=models.CASCADE,
+    )
+    session = models.ForeignKey(
+        'ParliamentarySession',
+        on_delete=models.CASCADE,
+        null=True,
+        related_name='bills',
+    )
 """
