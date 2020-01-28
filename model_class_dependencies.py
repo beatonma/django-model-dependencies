@@ -198,7 +198,6 @@ def generate_graph(
         models: Dict[str, PyClass],
         for_models=None,  # Prune any nodes/edges that are not connected to a model with this name.
         abstract_enabled=True,
-        concrete_enabled=True,
         related_field_enabled=True,
         subclass_enabled=True,
 ) -> Tuple[nx.Graph, Dict, Dict]:
@@ -251,8 +250,7 @@ def generate_graph(
     if abstract_enabled:
         graph.add_nodes_from(abstract_models)
 
-    if concrete_enabled:
-        graph.add_nodes_from(concrete_models)
+    graph.add_nodes_from(concrete_models)
 
     # Add edges to graph
     if related_field_enabled:
@@ -281,7 +279,6 @@ def show_graph(
         layout_fn=nx.circular_layout,
         saveas=None,
         abstract_enabled=True,
-        concrete_enabled=True,
         related_field_enabled=True,
         subclass_enabled=True,
 ):
@@ -325,16 +322,6 @@ def show_graph(
             connectionstyle='arc3, rad=.05'
         )
 
-    if concrete_enabled:
-        nx.draw_networkx_nodes(
-            graph, layout,
-            nodelist=nodes.get('concrete'),
-            node_color='#244461',
-            node_shape='o',
-            node_size=200,
-            alpha=1.0,
-        )
-
     if abstract_enabled:
         nx.draw_networkx_nodes(
             graph, layout,
@@ -344,6 +331,15 @@ def show_graph(
             node_size=200,
             alpha=.7,
         )
+
+    nx.draw_networkx_nodes(
+        graph, layout,
+        nodelist=nodes.get('concrete'),
+        node_color='#244461',
+        node_shape='o',
+        node_size=200,
+        alpha=1.0,
+    )
 
     nx.draw_networkx_labels(
         graph, layout,
@@ -421,13 +417,6 @@ def _parse_args():
     )
 
     parser.add_argument(
-        '-noconcrete',
-        dest='concrete',
-        default=True,
-        action='store_false',
-    )
-
-    parser.add_argument(
         '-fieldsonly',
         default=False,
         action='store_true',
@@ -469,8 +458,6 @@ def _parse_args():
 
     if not parsed.abstract:
         log.info('Abstract classes hidden')
-    if not parsed.concrete:
-        log.info('Concrete classes hidden')
     if not parsed.related_fields:
         log.info('Field relations (ForeignKey, OneToOneField, ManyToManyField) hidden')
     if not parsed.subclasses:
@@ -486,7 +473,6 @@ def main():
         'related_field_enabled': clargs.related_fields,
         'subclass_enabled': clargs.subclasses,
         'abstract_enabled': clargs.abstract,
-        'concrete_enabled': clargs.concrete,
     }
 
     models = get_models_for_directory(clargs.cwd)
