@@ -386,53 +386,8 @@ def _parse_args():
         'cwd',
         type=str,
         default='.',
-        help='Base project directory. PyClasss will be discovered in any '
-             'subdirectory not included in DIRECTORY_BLACKLIST',
-    )
-
-    parser.add_argument(
-        '--saveas',
-        default=None,
-    )
-
-    parser.add_argument(
-        '-nosubclass',
-        dest='subclasses',
-        default=True,
-        action='store_false',
-    )
-
-    parser.add_argument(
-        '-nofields',
-        dest='related_fields',
-        default=True,
-        action='store_false',
-    )
-
-    parser.add_argument(
-        '-noabstract',
-        dest='abstract',
-        default=True,
-        action='store_false',
-    )
-
-    parser.add_argument(
-        '-fieldsonly',
-        default=False,
-        action='store_true',
-    )
-
-    parser.add_argument(
-        '-subclassonly',
-        default=False,
-        action='store_true',
-    )
-
-    parser.add_argument(
-        '-noshow',
-        dest='show',
-        default=True,
-        action='store_false',
+        help='Base project directory. PyClasses will be discovered in any '
+             'subdirectory not included in DIRECTORY_BLACKLIST.',
     )
 
     parser.add_argument(
@@ -442,6 +397,58 @@ def _parse_args():
         help='List of model names that you are interested in. '
              'The resulting graph will only show these models and those '
              'that share a direct relationship with them (in either direction).',
+    )
+
+    parser.add_argument(
+        '--saveas',
+        default=None,
+        help='Save the graph to the given filename.',
+    )
+
+    parser.add_argument(
+        '-noshow',
+        dest='show',
+        default=True,
+        action='store_false',
+        help='Use alongside `--saveas` to bypass showing the image.',
+    )
+
+    parser.add_argument(
+        '-nosubclass',
+        dest='subclasses',
+        default=True,
+        action='store_false',
+        help='Ignore class inheritance-based relationships.',
+    )
+
+    parser.add_argument(
+        '-nofields',
+        dest='related_fields',
+        default=True,
+        action='store_false',
+        help='Ignore field-based relationships - ForeignKey, OneToOneField, ManyToManyField',
+    )
+
+    parser.add_argument(
+        '-noabstract',
+        dest='abstract',
+        default=True,
+        action='store_false',
+        help='Ignore abstract models (mixins, base model classes - anything with class Meta: abstract = True)',
+    )
+
+    parser.add_argument(
+        '-fieldsonly',
+        default=False,
+        action='store_true',
+        help='Equivalent to `-noabstract -nosubclass`',
+    )
+
+    parser.add_argument(
+        '-subclassonly',
+        default=False,
+        action='store_true',
+        help='Equivalent to `-nofields`',
     )
 
     parsed = parser.parse_args()
