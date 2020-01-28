@@ -20,6 +20,21 @@ log = logging.getLogger(__name__)
 log.addHandler(logging.StreamHandler())
 log.setLevel(logging.INFO)
 
+
+FIELD_REGEX = re.compile(
+    r'\s+([^\s]+) = ([^(]+?)\(([^)]*?)\)',
+    re.DOTALL
+)
+ABSTRACT_MODEL_REGEX = re.compile(
+    r'.*class Meta:.*abstract = True',
+    re.DOTALL
+)
+MODEL_REGEX = re.compile(
+    r'^class ([\S]+)\(([^)]*?)\):\n(.*?)(\Z|(?=^[\S]))',
+    re.DOTALL | re.MULTILINE
+)
+
+
 DIRECTORY_BLACKLIST = [
     '__pycache__',
     '.git',
@@ -82,18 +97,8 @@ class PyClass:
         return self.foreign_key_models() + self.one_to_one_models() + self.many_to_many_models()
 
 
-FIELD_REGEX = re.compile(
-    r'\s+([^\s]+) = ([^(]+?)\(([^)]*?)\)',
-    re.DOTALL
-)
-ABSTRACT_MODEL_REGEX = re.compile(
-    r'.*class Meta:.*abstract = True',
-    re.DOTALL
-)
-MODEL_REGEX = re.compile(
-    r'^class ([\S]+)\(([^)]*?)\):\n(.*?)(\Z|(?=^[\S]))',
-    re.DOTALL | re.MULTILINE
-)
+def _flatten(lst):
+    return [item for sub in lst for item in sub]
 
 
 def parse_field_params(text: str) -> Tuple[List, Dict]:
@@ -191,27 +196,26 @@ def inherit_mixin_fields(models: Dict[str, PyClass]):
 
 def generate_graph(
         models: Dict[str, PyClass],
+        for_models=None,  # Prune any nodes/edges that are not connected to a model with this name.
         abstract_enabled=True,
         concrete_enabled=True,
         related_field_enabled=True,
         subclass_enabled=True,
 ) -> Tuple[nx.Graph, Dict, Dict]:
+    def filter_edge_for_model(output_list: List, self_name: str, foreign_name: str):
+        """If for_model is defined, only add the edge to output_list if it matches
+        either self_name or foreign_name.
+        If for_model is not defined then just add the edge."""
+        if not for_models:
+            # print('NOT FOR_MODELS')
+            output_list.append((self_name, foreign_name))
+        elif for_models and (self_name in for_models or foreign_name in for_models):
+            # print(self_name, foreign_name, 'in', for_models)
+            output_list.append((self_name, foreign_name))
+        # else:
+        #     print('X', self_name, foreign_name, 'not in', for_models)
+
     graph = nx.MultiDiGraph(format='png', directed=True)
-
-    # Classify nodes and add them to graph
-    abstract_models = [models[a].name for a in models.keys() if models[a].abstract]
-    concrete_models = [x.name for x in models.values() if x.name not in abstract_models]
-
-    if abstract_enabled:
-        graph.add_nodes_from(abstract_models)
-
-    if concrete_enabled:
-        graph.add_nodes_from(concrete_models)
-
-    nodes = {
-        'abstract': abstract_models,
-        'concrete': concrete_models,
-    }
 
     foreign_key_relations = []
     one_to_one_relations = []
@@ -221,21 +225,45 @@ def generate_graph(
     # Classify edges and add them to graph
     for model in models.values():
         for fk in model.foreign_key_models():
-            foreign_key_relations.append((model.name, fk))
+            filter_edge_for_model(foreign_key_relations, model.name, fk)
         for oto in model.one_to_one_models():
-            one_to_one_relations.append((model.name, oto))
+            filter_edge_for_model(one_to_one_relations, model.name, oto)
         for mtm in model.many_to_many_models():
-            many_to_many_relations.append((model.name, mtm))
-        # for related in model.related_models():
-        #     field_relations.append((model.name, related))
+            filter_edge_for_model(many_to_many_relations, model.name, mtm)
 
         for dep in model.class_dependencies:
-            subclass_relations.append((model.name, dep))
+            filter_edge_for_model(subclass_relations, model.name, dep)
 
+    # Classify nodes and add them to graph
+    abstract_models = [models[a].name for a in models.keys() if models[a].abstract]
+    concrete_models = [x.name for x in models.values() if x.name not in abstract_models]
+
+    if for_models:
+        # Remove any nodes that are not connected by edges filtered by for_model
+        filtered_edges = (foreign_key_relations + one_to_one_relations
+                          + many_to_many_relations + subclass_relations)
+        filtered_nodes = _flatten(filtered_edges)
+
+        abstract_models = [m for m in abstract_models if m in filtered_nodes]
+        concrete_models = [m for m in concrete_models if m in filtered_nodes]
+
+    # Add nodes to graph
+    if abstract_enabled:
+        graph.add_nodes_from(abstract_models)
+
+    if concrete_enabled:
+        graph.add_nodes_from(concrete_models)
+
+    # Add edges to graph
     if related_field_enabled:
         graph.add_edges_from(foreign_key_relations + one_to_one_relations + many_to_many_relations)
     if subclass_enabled:
         graph.add_edges_from(subclass_relations)
+
+    nodes = {
+        'abstract': abstract_models,
+        'concrete': concrete_models,
+    }
 
     edges = {
         'foreignkey': foreign_key_relations,
@@ -348,6 +376,13 @@ def parse_classes_from_directory(directory: str) -> Dict[str, PyClass]:
     return models
 
 
+def get_models_for_directory(directory: str) -> Dict[str, PyClass]:
+    classes = parse_classes_from_directory(directory)
+    filter_models(classes)
+    inherit_mixin_fields(classes)
+    return classes
+
+
 def _parse_args():
     parser = argparse.ArgumentParser()
 
@@ -411,6 +446,15 @@ def _parse_args():
         action='store_false',
     )
 
+    parser.add_argument(
+        '--models',
+        default=None,
+        nargs='+',
+        help='List of model names that you are interested in. '
+             'The resulting graph will only show these models and those '
+             'that share a direct relationship with them (in either direction).',
+    )
+
     parsed = parser.parse_args()
 
     if parsed.cwd == '.':
@@ -445,11 +489,13 @@ def main():
         'concrete_enabled': clargs.concrete,
     }
 
-    classes = parse_classes_from_directory(clargs.cwd)
-    inherit_mixin_fields(classes)
-    filter_models(classes)
+    models = get_models_for_directory(clargs.cwd)
 
-    graph, nodes, edges = generate_graph(classes, **enabled_entities)
+    graph, nodes, edges = generate_graph(
+        models,
+        for_models=clargs.models,
+        **enabled_entities,
+    )
 
     show_graph(
         graph, nodes, edges,
