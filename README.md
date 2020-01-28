@@ -27,14 +27,23 @@ or to build a graph of the current directory:
     djmodgraph .
 
 # Command line arguments
-`--savas SAVEAS`: Save the graph to the given filename.  
+`--savas SAVEAS`: Save the graph to the given filename.
+
 `--models MODELS [MODELS ...]`: The output graph will show only these models and their direct relationships to other models.  
-`-noshow`: Use alongside `--saveas` to bypass showing the image.  
-`-nofields`: Ignore field-based relationships - ForeignKey, OneToOneField, ManyToManyField.  
-`-nosubclass`: Ignore class inheritance-based relationships.  
-`-noabstract`: Ignore abstract models (mixins, base model classes - anything with `class Meta: abstract = True`)  
-`-fieldsonly`: Equivalent to `-noabstract -nosubclass`  
-`-subclassonly`: Equivalent to `-nofields`  
+![Filtered output --models Party](example-output/example-output-filtered.svg)
+
+`-noshow`: Use alongside `--saveas` to bypass showing the image.
+
+`-nofields`: Ignore field-based relationships - ForeignKey, OneToOneField, ManyToManyField.
+
+`-nosubclass`: Ignore class inheritance-based relationships.
+
+`-noabstract`: Ignore abstract models (mixins, base model classes - anything with `class Meta: abstract = True`)
+
+`-fieldsonly`: Equivalent to `-noabstract -nosubclass`
+
+`-subclassonly`: Equivalent to `-nofields`
+
 
 # Testing
 
